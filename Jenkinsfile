@@ -1,43 +1,40 @@
 pipeline {
-agent any
+    agent any
 
-```
-stages {
+    stages {
 
-    stage('Checkout') {
-        steps {
-            echo 'Checking out source code...'
-            checkout scm
+        stage('Checkout') {
+            steps {
+                echo 'Checking out source code...'
+                checkout scm
+            }
+        }
+
+        stage('Verify Workspace') {
+            steps {
+                echo 'Current directory:'
+                sh 'pwd'
+
+                echo 'Workspace contents:'
+                sh 'ls -la'
+
+                echo 'Project structure:'
+                sh 'find . -maxdepth 2 -type f | sort'
+            }
         }
     }
 
-    stage('Verify Workspace') {
-        steps {
-            echo 'Current directory:'
-            sh 'pwd'
+    post {
+        success {
+            echo 'Pipeline executed successfully.'
+        }
 
-            echo 'Workspace contents:'
-            sh 'ls -la'
+        failure {
+            echo 'Pipeline failed.'
+        }
 
-            echo 'Project structure:'
-            sh 'find . -maxdepth 2 -type f | sort'
+        always {
+            cleanWs()
         }
     }
-}
-
-post {
-    success {
-        echo 'Pipeline executed successfully.'
-    }
-
-    failure {
-        echo 'Pipeline failed.'
-    }
-
-    always {
-        cleanWs()
-    }
-}
-```
-
 }
