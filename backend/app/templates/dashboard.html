@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InfraWatch - DevOps & Infrastructure Monitor</title>
+    <meta name="description" content="Production-grade real-time infrastructure and security monitoring dashboard for Kali Linux.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #080b11;
+            --card-bg: rgba(17, 24, 39, 0.55);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            
+            /* Status Colors */
+            --color-success: #10b981;
+            --color-warning: #f59e0b;
+            --color-danger: #ef4444;
+            --color-security: #a855f7;
+            --color-info: #3b82f6;
+
+            /* Glow Effects */
+            --glow-success: 0 0 15px rgba(16, 185, 129, 0.3);
+            --glow-warning: 0 0 15px rgba(245, 158, 11, 0.3);
+            --glow-danger: 0 0 15px rgba(239, 68, 68, 0.3);
+            --glow-security: 0 0 15px rgba(168, 85, 247, 0.3);
+            --glow-info: 0 0 15px rgba(59, 130, 246, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.1) 0px, transparent 50%);
+            color: var(--text-primary);
+            font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+            min-height: 100vh;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        /* Container Layout */
+        .dashboard-container {
+            max-width: 1440px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Header Style */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            padding: 20px 32px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .logo-area h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo-area p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .status-badge {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid var(--color-success);
+            color: var(--color-success);
+            padding: 6px 14px;
+            border-radius: 99px;
+            font-size: 13px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: var(--glow-success);
+        }
+
+        .status-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background-color: var(--color-success);
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 1.8s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.7; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.7; }
+        }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .refresh-info {
+            font-size: 13px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .refresh-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 500;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Metric Widgets Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .metric-value-container {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .metric-value {
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+
+        .metric-unit {
+            font-size: 16px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Progress Bar */
+        .progress-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 99px;
+            height: 8px;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .progress-bar {
+            height: 100%;
+            border-radius: 99px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .bg-cpu { background: linear-gradient(90deg, #3b82f6, #60a5fa); box-shadow: var(--glow-info); }
+        .bg-memory { background: linear-gradient(90deg, #f59e0b, #fbbf24); box-shadow: var(--glow-warning); }
+        .bg-disk { background: linear-gradient(90deg, #10b981, #34d399); box-shadow: var(--glow-success); }
+
+        /* Secondary Row Layout */
+        .main-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Services Component */
+        .services-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .service-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+
+        .service-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .service-badge {
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--color-success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-down {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--color-danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            animation: pulse-danger 2s infinite;
+        }
+
+        @keyframes pulse-danger {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* Alerts Table */
+        .alerts-panel {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .alerts-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .alerts-table th {
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .alerts-table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 14px;
+        }
+
+        .severity-pill {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .severity-critical {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--color-danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .severity-warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--color-warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .severity-security {
+            background: rgba(168, 85, 247, 0.15);
+            color: var(--color-security);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            box-shadow: var(--glow-security);
+        }
+
+        .alert-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+
+        .no-data {
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        /* Chart Area styling */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            position: relative;
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Dashboard Header -->
+        <header>
+            <div class="logo-area">
+                <h1>InfraWatch</h1>
+                <p id="system-subtitle">Monitoring: <strong style="color: var(--text-primary);">{{ server_name }}</strong></p>
+            </div>
+            <div class="header-meta">
+                <div class="refresh-info">
+                    <span>Auto-refreshing in: <strong id="timer">15</strong>s</span>
+                </div>
+                <button class="refresh-btn" onclick="location.reload()" id="refresh-action-btn">Refresh Now</button>
+                <div class="status-badge" id="conn-status">Connected</div>
+            </div>
+        </header>
+
+        <!-- Resource Metrics Cards -->
+        <div class="metrics-grid">
+            <!-- CPU Card -->
+            <div class="metric-card" id="cpu-metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">CPU Utilization</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-info);"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-value" id="cpu-val">{{ "%.1f"|format(latest_metric.cpu_percent) if latest_metric else "0.0" }}</span>
+                    <span class="metric-unit">%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-bar bg-cpu" style="width: {{ latest_metric.cpu_percent if latest_metric else 0 }}%;" id="cpu-bar"></div>
+                </div>
+            </div>
+
+            <!-- Memory Card -->
+            <div class="metric-card" id="mem-metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Memory Allocation</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-warning);"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-value" id="mem-val">{{ "%.1f"|format(latest_metric.memory_percent) if latest_metric else "0.0" }}</span>
+                    <span class="metric-unit">%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-bar bg-memory" style="width: {{ latest_metric.memory_percent if latest_metric else 0 }}%;" id="mem-bar"></div>
+                </div>
+            </div>
+
+            <!-- Disk Space Card -->
+            <div class="metric-card" id="disk-metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Disk Storage</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-success);"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                </div>
+                <div class="metric-value-container">
+                    <span class="metric-value" id="disk-val">{{ "%.1f"|format(latest_metric.disk_percent) if latest_metric else "0.0" }}</span>
+                    <span class="metric-unit">%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-bar bg-disk" style="width: {{ latest_metric.disk_percent if latest_metric else 0 }}%;" id="disk-bar"></div>
+                </div>
+            </div>
+
+            <!-- Network Card -->
+            <div class="metric-card" id="net-metric-card">
+                <div class="metric-header">
+                    <span class="metric-title">Network Throughput</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary);"><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><polyline points="8 8 12 4 16 8"></polyline><line x1="12" y1="4" x2="12" y2="13"></line></svg>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                        <span style="color: var(--text-secondary);">Sent:</span>
+                        <span style="font-weight: 600;" id="net-sent-val">
+                            {% if latest_metric %}
+                                {{ "%.2f"|format(latest_metric.bytes_sent / 1024 / 1024) }} MB
+                            {% else %}
+                                0.00 MB
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                        <span style="color: var(--text-secondary);">Received:</span>
+                        <span style="font-weight: 600;" id="net-recv-val">
+                            {% if latest_metric %}
+                                {{ "%.2f"|format(latest_metric.bytes_recv / 1024 / 1024) }} MB
+                            {% else %}
+                                0.00 MB
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-layout">
+            <!-- Historical Graph & Alerts -->
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+                <!-- Chart Panel -->
+                <div class="panel-card" id="chart-panel-card">
+                    <div class="panel-title">Resource Timeline (Last 20 Samples)</div>
+                    <div class="chart-container">
+                        <canvas id="metricsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Alerts Table Panel -->
+                <div class="panel-card" id="alerts-panel-card">
+                    <div class="panel-title">Recent Alerts</div>
+                    <div class="alerts-panel">
+                        {% if recent_alerts %}
+                            <table class="alerts-table">
+                                <thead>
+                                    <tr>
+                                        <th>Severity</th>
+                                        <th>Type</th>
+                                        <th>Message</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for alert in recent_alerts %}
+                                        <tr>
+                                            <td>
+                                                <span class="severity-pill 
+                                                    {% if alert.severity == 'CRITICAL' %}severity-critical
+                                                    {% elif alert.severity == 'WARNING' %}severity-warning
+                                                    {% elif alert.severity == 'SECURITY_ALERT' %}severity-security
+                                                    {% endif %}">
+                                                    {{ alert.severity }}
+                                                </span>
+                                            </td>
+                                            <td style="font-weight: 500;">{{ alert.alert_type }}</td>
+                                            <td style="color: var(--text-secondary);">{{ alert.message }}</td>
+                                            <td class="alert-time">{{ alert.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="no-data">No alerts logged. System is operating normally.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitored Services Side Panel -->
+            <div class="panel-card" style="height: fit-content;" id="services-panel-card">
+                <div class="panel-title">Linux Services Status</div>
+                <div class="services-list">
+                    {% if services %}
+                        {% for svc in services %}
+                            <div class="service-item">
+                                <span class="service-name">{{ svc.service_name }}</span>
+                                <span class="service-badge {% if svc.status == 'active' %}badge-active{% else %}badge-down{% endif %}">
+                                    {{ svc.status }}
+                                </span>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-data" style="padding: 20px;">No service status reports received.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Configuration Script -->
+    <script>
+        // Data populated from backend
+        const chartLabels = [
+            {% for metric in metrics_history %}
+                "{{ metric.timestamp.strftime('%H:%M:%S') }}",
+            {% endfor %}
+        ];
+        
+        const cpuData = [
+            {% for metric in metrics_history %}
+                {{ metric.cpu_percent }},
+            {% endfor %}
+        ];
+
+        const memoryData = [
+            {% for metric in metrics_history %}
+                {{ metric.memory_percent }},
+            {% endfor %}
+        ];
+
+        const diskData = [
+            {% for metric in metrics_history %}
+                {{ metric.disk_percent }},
+            {% endfor %}
+        ];
+
+        // Chart.js Configuration
+        const ctx = document.getElementById('metricsChart').getContext('2d');
+        const metricsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [
+                    {
+                        label: 'CPU (%)',
+                        data: cpuData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Memory (%)',
+                        data: memoryData,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Disk (%)',
+                        data: diskData,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#9ca3af',
+                            font: { family: 'Outfit', size: 12 }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: {
+                            color: '#9ca3af',
+                            font: { family: 'Outfit', size: 11 }
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 100,
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: {
+                            color: '#9ca3af',
+                            font: { family: 'Outfit', size: 11 }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 15 seconds Auto refresh countdown timer
+        let timeLeft = 15;
+        const timerEl = document.getElementById('timer');
+        const countdown = setInterval(() => {
+            timeLeft--;
+            if (timerEl) timerEl.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                location.reload();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

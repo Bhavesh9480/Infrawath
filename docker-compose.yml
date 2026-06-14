@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  infrawatch:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: infrawatch-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/data/infrawatch.db
+    volumes:
+      - infrawatch_data:/app/data
+
+volumes:
+  infrawatch_data:
+    driver: local
